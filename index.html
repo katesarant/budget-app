@@ -74,16 +74,17 @@ const mo=m=>data[m]||{};const L=t=>cfg.filter(x=>x.t===t);
 const tot=(m,t)=>L(t).reduce((s,x)=>s+num(mo(m)[x.id]),0);
 const ls=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const GHC=()=>ls("ghcfg",null);let db=ls("budDB",{}),sha=null,tm=null,busy=false,again=false;
+const em=async r=>{try{return(await r.json()).message||""}catch(e){return""}};
 const stat=t=>{$("st").textContent=t;$("gs").textContent=t};
 function api(method,body){const c=GHC();return fetch("https://api.github.com/repos/"+c.repo+"/contents/"+(c.path||"data.json")+(method==="GET"?"?ref="+(c.branch||"main"):""),{method,headers:{Authorization:"Bearer "+c.token,Accept:"application/vnd.github+json"},body:body?JSON.stringify(body):undefined})}
 async function pull(){const c=GHC();if(!c||!c.repo||!c.token){stat("Τοπική λειτουργία (χωρίς GitHub)");return}
  try{const r=await api("GET");if(r.status===404){sha=null;stat("Δεν βρέθηκε αρχείο — θα δημιουργηθεί στην πρώτη αποθήκευση (αν το repo είναι σωστό)");return}
-  if(!r.ok){stat("⚠ GitHub "+r.status+(r.status===401?" — λάθος ή ληγμένο token":""));return}
+  if(!r.ok){stat("⚠ GitHub "+r.status+" (ανάγνωση): "+await em(r));return}
   const j=await r.json();sha=j.sha;db=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(j.content.replace(/\n/g,"")),ch=>ch.charCodeAt(0))));
   try{localStorage.setItem("budDB",JSON.stringify(db))}catch(e){}stat("✓ Συγχρονίστηκε με GitHub")}catch(e){stat("⚠ Δεν έγινε σύνδεση — τοπικά δεδομένα")}}
 async function push(){const c=GHC();if(!c||!c.repo||!c.token){stat("✓ Αποθηκεύτηκε μόνο σε αυτή τη συσκευή");return}if(busy){again=true;return}busy=true;
  try{const body={message:"budget "+new Date().toISOString().slice(0,16),content:btoa(unescape(encodeURIComponent(JSON.stringify(db,null,1)))),branch:c.branch||"main"};if(sha)body.sha=sha;
-  const r=await api("PUT",body);if(r.ok){sha=(await r.json()).content.sha;stat("✓ Αποθηκεύτηκε στο GitHub")}else stat(r.status===409||r.status===422?"⚠ Το αρχείο άλλαξε αλλού — πάτα ↻ Συγχρονισμός":"⚠ Σφάλμα GitHub "+r.status)}catch(e){stat("⚠ Δεν αποθηκεύτηκε στο GitHub")}
+  const r=await api("PUT",body);if(r.ok){sha=(await r.json()).content.sha;stat("✓ Αποθηκεύτηκε στο GitHub")}else stat(r.status===409?"⚠ Το αρχείο άλλαξε αλλού — πάτα ↻ Συγχρονισμός":"⚠ GitHub "+r.status+" (εγγραφή): "+await em(r))}catch(e){stat("⚠ Δεν αποθηκεύτηκε στο GitHub")}
  busy=false;if(again){again=false;push()}}
 function persist(){db.config=cfg;db.years=db.years||{};db.years[Y]=data;try{localStorage.setItem("budDB",JSON.stringify(db))}catch(e){}stat("Αποθήκευση…");clearTimeout(tm);tm=setTimeout(push,1500)}
 const save=persist,saveCfg=persist;
